@@ -1,10 +1,3 @@
-#property copyright "Copyright 2018, MetaQuotes Software Corp."
-#property link      "https://www.mql5tutorial.com"
-#property version   "1.00"
-
-
-
-
 class Base
 {
         public:
@@ -23,7 +16,7 @@ class Base
                 
                 void UpdateAccountInfo();
 
-                void initialize();//in case u needed anything to run only on initialization of program.
+                void Initialize();//in case u needed anything to run only on initialization of program.
                 
                 bool NewCandleCame();
                 
@@ -69,7 +62,7 @@ Base::ResetCounter(void)
 }
 
 
-Base::initialize(void)
+Base::Initialize(void)
 {
         ResetCounter();
 }
