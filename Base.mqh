@@ -75,6 +75,7 @@ bool Base::NewCandleCame(void)
         {
                 timeStampLastChecked = timeStampCurrentCandle;
                 candleCounter++;
+                return(true);
         }
-        return (timeStampCurrentCandle!=timeStampLastChecked);
+        return (false);
 }
