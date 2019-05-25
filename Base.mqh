@@ -8,17 +8,21 @@ class Base
                 double ask;
                 double minTrade;
                 MqlRates priceData[];
+                unsigned int numberOfPriceCandles;
                 
                 int candleCounter;
                 
+                //FUNCTIONS---------------
                 Base();
                 ~Base();
                 
-                void UpdateAccountInfo();
-
                 void Initialize();//in case u needed anything to run only on initialization of program.
                 
+                void UpdateAccountInfo();
+                
                 bool NewCandleCame();
+                
+                void SetNumberOfPriceCandles(int n);
                 
         private:
                 datetime timeStampCurrentCandle;
@@ -30,11 +34,12 @@ class Base
   };
   
 Base::Base()
-  {
-  }
+{
+        numberOfPriceCandles = 30;
+}
 Base::~Base()
-  {
-  }
+{
+}
 
 Base::UpdateAccountInfo(void)
 {
@@ -46,13 +51,13 @@ Base::UpdateAccountInfo(void)
         GetPrices();
 }
 
-
-Base::GetPrices(void)
-{
-        ask=NormalizeDouble(SymbolInfoDouble(_Symbol,SYMBOL_ASK),_Digits);
-        bid=NormalizeDouble(SymbolInfoDouble(_Symbol,SYMBOL_BID),_Digits);
-        ArraySetAsSeries(priceData,true);
-}
+        Base::GetPrices(void)
+        {
+                ask=NormalizeDouble(SymbolInfoDouble(_Symbol,SYMBOL_ASK),_Digits);
+                bid=NormalizeDouble(SymbolInfoDouble(_Symbol,SYMBOL_BID),_Digits);
+                ArraySetAsSeries(priceData,true);
+                CopyRates(Symbol(),Period(),0,numberOfPriceCandles,priceData);
+        }
 
 
 Base::ResetCounter(void)
@@ -61,12 +66,10 @@ Base::ResetCounter(void)
         candleCounter = 0;
 }
 
-
 Base::Initialize(void)
 {
         ResetCounter();
 }
-
 
 bool Base::NewCandleCame(void)
 {
@@ -78,4 +81,9 @@ bool Base::NewCandleCame(void)
                 return(true);
         }
         return (false);
+}
+
+void Base::SetNumberOfPriceCandles(int n)
+{
+        this.numberOfPriceCandles = n; 
 }
