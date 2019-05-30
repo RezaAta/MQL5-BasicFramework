@@ -19,69 +19,75 @@ struct TradeSignal
 
 class TradeSystem
 {
-public:
-        string tradeSignal;
-        string lastTradeSignal;
-        TradeSignal tradeSignals[];//all signals that are given to trade system
-        double test[];
+        public:
+                string tradeSignal;
+                string lastTradeSignal;
+                TradeSignal tradeSignals[];//all signals that are given to trade system
+                double test[];
+                
+                double microLots;
+                double buyTradeStopLoss;
+                double sellTradeStopLoss;
+                int lastOrderType;
+                double reliability;
+                
+                //FUNCTIONS---------------
+                TradeSystem();
+                
+                void Initialize();
+                
+                void SetStrategyTriggers(int buyStrategies,int sellStrategies);
+                
+                void StartTradeBasedOnCandleType();
+                
+                void CloseAllOrders();
+                
+                void UpdateAllStopLoss(MqlRates& priceData[]);
+                
+                void TradeIfSignalStands();
+                
+                void DetermineCandleType();
+                
+                void OptimizeTrades(); //this function Updates Trades SL and Headges them, i need to write a better function, or maybe i should public functions and use them outside.
+                
+                void SetOptimizationSettings(bool trailingSLTrigger, bool hedgingTrigger, bool counterTradeTrigger);
+                
+                TradeSignal CreateTradeSignal(int strategyNumber, int tradeType,double microLots,double stopLoss,double takeProfit);// creates trade signals
+                string GetTradeSignal(){ return tradeSignal; }
+                void ReceiveTradeSignal(TradeSignal & tradeSignal);//give a trade signal to trade system using this array
         
-        double microLots;
-        double buyTradeStopLoss;
-        double sellTradeStopLoss;
-        int lastOrderType;
-        double reliability;
-        
-        
-        TradeSystem();
-        
-        void Initialize();
-        
-        void SetStrategyTriggers(int buyStrategies,int sellStrategies);
-        
-        void StartTradeBasedOnCandleType();
-        
-        void CloseAllOrders();
-        
-        void UpdateAllStopLoss(MqlRates& priceData[]);
-        
-        void TradeIfSignalStands();
-        
-        void DetermineCandleType();
-        
-        TradeSignal CreateTradeSignal(int strategyNumber, int tradeType,double microLots,double stopLoss,double takeProfit);// creates trade signals
-        string GetTradeSignal(){ return tradeSignal; }
-        void ReceiveTradeSignal(TradeSignal & tradeSignal);//give a trade signal to trade system using this array
-        
-        
-        
-private:
-        string candlesTypes[5];
-        string candleType;
-        
-        bool SignalIsValid();
-        
-        //These Triggers are used when we have different buy or sell strategies that must be used only once. sometimes some strategies give buy or sell signals more than
-        //we need. if i want to be more accurate, some strategies keep giving signals in a certain period, while all you need is just one buy signal. so if we use these
-        //boolean triggers, then we can manage our repeatative signals properly. for each strategy that u have, there should be a trigger.
-        int numberOfBuyStrategies;//this parameters can be set by user.
-        int numberOfSellStrategies;//this parameters can be set by user.
-        bool buyStrategiesTriggers[];//an array for buy triggers
-        bool sellStrategiesTriggers[];//an array for sell triggers
-        
-        bool BS1Trigger;
-        bool SS1Trigger;
-        bool stopLossUpdateTrigger;
-        
-        void InitializeStrategyTriggers();
-        void TradeBySignal(TradeSignal &tradeSignal);//starts trading by signals that are given by strategies. returns a 
-        void UpdateTriggers();
-        void HedgeAllPositions();
-        
-  };
+                
+        private:
+                string candlesTypes[5];
+                string candleType;
+                bool hedging;
+                bool trailingSL;
+                bool counterTrade;
+                
+                bool SignalIsValid();
+                
+                //These Triggers are used when we have different buy or sell strategies that must be used only once. sometimes some strategies give buy or sell signals more than
+                //we need. if i want to be more accurate, some strategies keep giving signals in a certain period, while all you need is just one buy signal. so if we use these
+                //boolean triggers, then we can manage our repeatative signals properly. for each strategy that u have, there should be a trigger.
+                int numberOfBuyStrategies;//this parameters can be set by user.
+                int numberOfSellStrategies;//this parameters can be set by user.
+                bool buyStrategiesTriggers[];//an array for buy triggers
+                bool sellStrategiesTriggers[];//an array for sell triggers
+                
+                bool BS1Trigger;
+                bool SS1Trigger;
+                bool stopLossUpdateTrigger;
+                
+                void InitializeStrategyTriggers();
+                void TradeBySignal(TradeSignal &tradeSignal);//starts trading by signals that are given by strategies. returns a 
+                void UpdateTriggers();
+                void HedgeAllPositions();
+                void CounterAllTrades(void);//sets a trading stop for each new trade in order to reduce damage taken.
+};
 
 TradeSystem::TradeSystem()
-  {
-  }
+{
+}
 
 TradeSystem::Initialize(void)
 {
@@ -102,6 +108,12 @@ TradeSystem::Initialize(void)
         buyStrategiesTriggers[0] = false;
         ArrayResize(sellStrategiesTriggers,numberOfSellStrategies);
         sellStrategiesTriggers[0] = false;
+}
+
+TradeSystem::InitializeStrategyTriggers(void)
+{
+        ArrayInitialize(this.buyStrategiesTriggers,false);
+        ArrayInitialize(this.sellStrategiesTriggers,false);
 }
 
 TradeSystem::SetStrategyTriggers(int numberOfBuyStrategies,int numberOfSellStrategies)
@@ -127,10 +139,11 @@ TradeSignal TradeSystem::CreateTradeSignal(int strategyNumber, int tradeType,dou
         return TS;
 }
 
-TradeSystem::InitializeStrategyTriggers(void)
+TradeSystem::ReceiveTradeSignal(TradeSignal &tradeSignal)
 {
-        ArrayInitialize(this.buyStrategiesTriggers,false);
-        ArrayInitialize(this.sellStrategiesTriggers,false);
+        ArrayResize(tradeSignals,ArraySize(tradeSignals)+1);
+        tradeSignals[ArraySize(tradeSignals)-1] = tradeSignal;
+        //tradeSignals[tradeSignal.strategyNumber] = tradeSignal;
 }
 
 TradeSystem::StartTradeBasedOnCandleType(void)
@@ -238,43 +251,6 @@ TradeSystem::StartTradeBasedOnCandleType(void)
                 ArrayFill(sellStrategiesTriggers,0,ArraySize(sellStrategiesTriggers),false);
         }
 
-TradeSystem::UpdateAllStopLoss(MqlRates &priceData[])//a system that creates a trailing stoploss
-{
-        for (int i = PositionsTotal()-1; i>=0; i--)
-        {
-                buyTradeStopLoss = NormalizeDouble(base.ask-150*_Point,_Digits);
-                sellTradeStopLoss = NormalizeDouble(base.bid+150*_Point,_Digits);
-        
-                string symbol = PositionGetSymbol(i);//gets the positions symbol and selects it as current!
-                
-                ulong positionTicket = PositionGetInteger(POSITION_TICKET);
-                
-                double currentStopLoss = NormalizeDouble(PositionGetDouble(POSITION_SL),_Digits);
-                
-                //Comment("TYPE:"+POSITION_COMMENT);
-                OrderSelect(positionTicket);
-                
-                //PositionGetInteger(POSITION_TYPE);
-                
-                //Comment("\nTYPE:"+ORDER_TYPE);
-                if(POSITION_TYPE == 0)// enters if order is a buy order
-                {
-                        if(currentStopLoss == 0 || currentStopLoss<buyTradeStopLoss)
-                        {
-                                trade.PositionModify(positionTicket,buyTradeStopLoss,trade.RequestTP());
-                        }
-                }
-        
-                if(POSITION_TYPE == 1)//enters if order is a sell order
-                {
-                        if(currentStopLoss == 0 || currentStopLoss>sellTradeStopLoss)
-                        {
-                                trade.PositionModify(positionTicket,sellTradeStopLoss,trade.RequestTP());
-                        }
-                }
-        }
-}
-
 TradeSystem::TradeIfSignalStands(void)
 {
         if(SignalIsValid())
@@ -290,19 +266,19 @@ TradeSystem::TradeIfSignalStands(void)
 }
 
         TradeSystem::DetermineCandleType(void)        
+        {
+                if(base.priceData[1].close > base.priceData[1].open)
+                        candleType = "Full";
+                else
+                        candleType = "Empty";
+                
+                for (int i = ArraySize(candlesTypes)-2; i >= 0; i--)
                 {
-                        if(base.priceData[1].close > base.priceData[1].open)
-                                candleType = "Full";
-                        else
-                                candleType = "Empty";
-                        
-                        for (int i = ArraySize(candlesTypes)-2; i >= 0; i--)
-                        {
-                                candlesTypes[i+1] = candlesTypes[i];
-                        }
-                        
-                        candlesTypes[0] = candleType;
+                        candlesTypes[i+1] = candlesTypes[i];
                 }
+                
+                candlesTypes[0] = candleType;
+        }
 
         bool TradeSystem::SignalIsValid(void)
         {
@@ -323,15 +299,98 @@ TradeSystem::TradeIfSignalStands(void)
                         return false;
                 else
                         return true;
+        }
+
+TradeSystem::OptimizeTrades(void)
+{
+        if(trailingSL)
+                UpdateAllStopLoss(base.priceData);
+        
+        if(hedging)
+                HedgeAllPositions();
+        
+        if(counterTrade)
+                CounterAllTrades();
+}
+        
+        TradeSystem::UpdateAllStopLoss(MqlRates &priceData[])//a system that creates a trailing stoploss
+        {
+                for (int i = PositionsTotal()-1; i>=0; i--)
+                {
+                        buyTradeStopLoss = NormalizeDouble(base.ask-150*_Point,_Digits);
+                        sellTradeStopLoss = NormalizeDouble(base.bid+150*_Point,_Digits);
+                
+                        string symbol = PositionGetSymbol(i);//gets the positions symbol and selects it as current!
+                        
+                        ulong positionTicket = PositionGetInteger(POSITION_TICKET);
+                        
+                        double currentStopLoss = NormalizeDouble(PositionGetDouble(POSITION_SL),_Digits);
+                        
+                        //Comment("TYPE:"+POSITION_COMMENT);
+                        OrderSelect(positionTicket);
+                        
+                        //PositionGetInteger(POSITION_TYPE);
+                        
+                        //Comment("\nTYPE:"+ORDER_TYPE);
+                        if(POSITION_TYPE == 0)// enters if order is a buy order
+                        {
+                                if(currentStopLoss == 0 || currentStopLoss<buyTradeStopLoss)
+                                {
+                                        trade.PositionModify(positionTicket,buyTradeStopLoss,trade.RequestTP());
+                                }
+                        }
+                
+                        if(POSITION_TYPE == 1)//enters if order is a sell order
+                        {
+                                if(currentStopLoss == 0 || currentStopLoss>sellTradeStopLoss)
+                                {
+                                        trade.PositionModify(positionTicket,sellTradeStopLoss,trade.RequestTP());
+                                }
+                        }
+                }
+        }
+
+
+        TradeSystem::HedgeAllPositions(void)
+        {
+                for (int i = PositionsTotal()-1; i>=0; i--)
+                {
+                        buyTradeStopLoss = NormalizeDouble(base.ask-150*_Point,_Digits);
+                        sellTradeStopLoss = NormalizeDouble(base.bid+150*_Point,_Digits);
+                        
+                        string symbol = PositionGetSymbol(i);//gets the positions symbol and selects it as current!
+                        
+                        ulong positionTicket = PositionGetInteger(POSITION_TICKET);
+                        
+                        double currentStopLoss = NormalizeDouble(PositionGetDouble(POSITION_SL),_Digits);
+                        
+                        //Comment("TYPE:"+POSITION_COMMENT);
+                        OrderSelect(positionTicket);
+                        
+                        double orderCurrentPrice;
+                        
+                        if(POSITION_PROFIT>100*_Point)
+                                trade.PositionClosePartial(positionTicket,POSITION_PROFIT);
+                        //PositionSelect(symbol);
+                        //Comment(POSITION_PROFIT
+                 }
+                
+        }
+
+TradeSystem::SetOptimizationSettings(bool trailingSLTrigger,bool hedgingTrigger,bool counterTradeTrigger)
+{
+        this.trailingSL = trailingSLTrigger;
+        this.hedging = hedgingTrigger;
+        this.counterTrade = counterTradeTrigger;
 }
 
-TradeSystem::HedgeAllPositions(void)
+TradeSystem::CounterAllTrades(void)
 {
-        
-}
-TradeSystem::ReceiveTradeSignal(TradeSignal &tradeSignal)
-{
-        ArrayResize(tradeSignals,ArraySize(tradeSignals)+1);
-        tradeSignals[ArraySize(tradeSignals)-1] = tradeSignal;
-        //tradeSignals[tradeSignal.strategyNumber] = tradeSignal;
+        for (int i = PositionsTotal()-1; i>=0; i--)
+        {
+                string symbol = PositionGetSymbol(i);//gets the positions symbol and selects it as current!
+                        
+                ulong positionTicket = PositionGetInteger(POSITION_TICKET);
+
+        }
 }
