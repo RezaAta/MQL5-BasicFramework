@@ -1,18 +1,24 @@
-#include <C:\Users\Prophet\AppData\Roaming\MetaQuotes\Terminal\D0E8209F77C8CF37AD8BF550E51FF075\MQL5\Experts\Classes\BasicFramework\Base.mqh>
-#include <C:\Users\Prophet\AppData\Roaming\MetaQuotes\Terminal\D0E8209F77C8CF37AD8BF550E51FF075\MQL5\Experts\Classes\BasicFramework\TradeSystem.mqh>
+#include "Base.mqh"
+#include "TradeSystem.mqh"
+#include "GUIHandler.mqh"
 
-Base base = new Base();
-TradeSystem tradeSystem = new TradeSystem();
+Base base;
+TradeSystem tradeSystem;
+GUIHandler GUIH;
 
 void OnInit()
 {
-        //camarillaLines.initializeCamarilla();
         base.Initialize();
         tradeSystem.Initialize();
+        
+        CreateGUI();
 }
 
 void OnTick()
   {
+  
+        GUIH.DrawGUI();//this function draws GUI if existing
+        
         base.UpdateAccountInfo();
         
         //order tradeSignal
@@ -50,6 +56,8 @@ void OnTick()
 //in this function u will write all the things about your trade strategy.
 void RunMainStrategy()
 {
+        RunGUIFunctionality();//must be called outside of the below if statement
+        
         if(base.NewCandleCame())
         {
                 DetermineSignal();//this can be called outside of if statement
@@ -59,10 +67,24 @@ void RunMainStrategy()
                         tradeSystem.TradeIfSignalStands();
                 
         }
-     
+        
 }
 
-void DetermineSignal()
+        void DetermineSignal()
+        {
+        //you should write ur strategy of finding signal here. if u found a signal u should set reliablity in ur signals and also should set microlots in tradesystem.
+        //this is a ONE TIME FUNCTION and its only called inside RunMainStrategy
+        }
+
+        void RunGUIFunctionality()
+        {
+        //here you write Functionality of your GUI
+        //this is a ONE TIME FUNCTION and its only called inside RunMainStrategy
+        }
+
+void CreateGUI()// this function declares all GUI elements
 {
-//you should write ur strategy of finding signal here. if u found a signal u should set reliablity in ur signals and also should set microlots in tradesystem.
+//I Declare GUI Objects Here and THEN draw GUI
+//this is a ONE TIME FUNCTION and its only called inside OnInit
+        GUIH.DrawGUI();
 }
